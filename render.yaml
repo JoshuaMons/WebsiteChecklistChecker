@@ -1,0 +1,7 @@
+# Deploy as a live website on Render.com
+# Connect your GitHub repo at https://dashboard.render.com and use this blueprint.
+services:
+  - type: web
+    name: website-audit-app
+    runtime: docker
+    plan: free
