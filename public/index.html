@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Website Audit Tool</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'DM Sans', system-ui, sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-900 text-slate-100">
+  <div class="max-w-3xl mx-auto px-4 py-10">
+    <header class="text-center mb-10">
+      <h1 class="text-3xl font-bold text-white tracking-tight">Website Audit</h1>
+      <p class="text-slate-400 mt-1">Enter a URL to run an automated checklist and get a report.</p>
+    </header>
+
+    <form id="audit-form" class="flex flex-col sm:flex-row gap-3 mb-8">
+      <input
+        type="url"
+        id="url-input"
+        placeholder="https://example.com"
+        class="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition"
+        required
+      />
+      <button
+        type="submit"
+        id="submit-btn"
+        class="rounded-lg bg-amber-500 px-6 py-3 font-semibold text-slate-900 hover:bg-amber-400 focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-slate-900 transition disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Run Website Audit
+      </button>
+    </form>
+
+    <div id="loading" class="hidden text-center py-12">
+      <div class="inline-block w-10 h-10 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-slate-400 mt-4">Loading and analyzing website…</p>
+    </div>
+
+    <div id="error" class="hidden rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 mb-6"></div>
+
+    <div id="report" class="hidden space-y-8">
+      <div class="rounded-xl bg-slate-800/80 border border-slate-700 p-6">
+        <h2 class="text-lg font-semibold text-white mb-1">Score</h2>
+        <p id="score-text" class="text-2xl font-bold text-amber-400">0 / 0</p>
+      </div>
+
+      <section class="rounded-xl bg-slate-800/80 border border-slate-700 overflow-hidden">
+        <h2 class="px-6 py-4 font-semibold text-white bg-slate-800/50 border-b border-slate-700">Website Check</h2>
+        <ul id="website-checklist" class="p-6 space-y-2"></ul>
+      </section>
+
+      <section class="rounded-xl bg-slate-800/80 border border-slate-700 overflow-hidden">
+        <h2 class="px-6 py-4 font-semibold text-white bg-slate-800/50 border-b border-slate-700">SEO Check</h2>
+        <ul id="seo-checklist" class="p-6 space-y-2"></ul>
+      </section>
+
+      <section class="rounded-xl bg-slate-800/80 border border-slate-700 overflow-hidden">
+        <h2 class="px-6 py-4 font-semibold text-white bg-slate-800/50 border-b border-slate-700">Sales Check</h2>
+        <ul id="sales-checklist" class="p-6 space-y-2"></ul>
+      </section>
+
+      <section id="screenshot-section" class="rounded-xl bg-slate-800/80 border border-slate-700 overflow-hidden hidden">
+        <h2 class="px-6 py-4 font-semibold text-white bg-slate-800/50 border-b border-slate-700">Homepage Screenshot</h2>
+        <div class="p-6">
+          <img id="screenshot-img" alt="Homepage screenshot" class="rounded-lg border border-slate-600 w-full max-h-[70vh] object-contain bg-slate-900" />
+        </div>
+      </section>
+
+      <section id="email-section" class="rounded-xl bg-slate-800/80 border border-slate-700 overflow-hidden hidden">
+        <h2 class="px-6 py-4 font-semibold text-white bg-slate-800/50 border-b border-slate-700">Email Template</h2>
+        <div class="p-6 space-y-3">
+          <pre id="email-template" class="rounded-lg bg-slate-900 border border-slate-600 p-4 text-sm text-slate-300 whitespace-pre-wrap overflow-x-auto"></pre>
+          <a id="mailto-link" href="#" class="inline-flex items-center rounded-lg bg-amber-500 px-4 py-2 font-medium text-slate-900 hover:bg-amber-400 transition">Open in email client</a>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('audit-form');
+    const urlInput = document.getElementById('url-input');
+    const submitBtn = document.getElementById('submit-btn');
+    const loading = document.getElementById('loading');
+    const error = document.getElementById('error');
+    const report = document.getElementById('report');
+
+    function showLoading(show) {
+      loading.classList.toggle('hidden', !show);
+      submitBtn.disabled = show;
+    }
+
+    function showError(msg) {
+      error.textContent = msg;
+      error.classList.remove('hidden');
+    }
+
+    function hideError() {
+      error.classList.add('hidden');
+    }
+
+    function renderItem(passed, label) {
+      const li = document.createElement('li');
+      li.className = 'flex items-center gap-2 text-slate-200';
+      li.innerHTML = passed
+        ? '<span class="text-green-500 font-bold" aria-hidden="true">✓</span> ' + label
+        : '<span class="text-red-500 font-bold" aria-hidden="true">✗</span> ' + label;
+      return li;
+    }
+
+    function renderReport(data) {
+      hideError();
+      report.classList.remove('hidden');
+
+      document.getElementById('score-text').textContent =
+        data.score.passed + ' / ' + data.score.total;
+
+      const websiteLabels = {
+        live: 'Website live',
+        mobile: 'Works on mobile',
+        googleMaps: 'Google Maps works',
+        contactDetails: 'Contact details present',
+        imagesCorrect: 'Images correct',
+      };
+      const websiteList = document.getElementById('website-checklist');
+      websiteList.innerHTML = '';
+      Object.entries(data.websiteCheck).forEach(([key, value]) => {
+        websiteList.appendChild(renderItem(value, websiteLabels[key] || key));
+      });
+
+      const seoLabels = {
+        cityInTitle: 'City in title',
+        metaDescription: 'Meta description',
+        altText: 'Alt text on images',
+      };
+      const seoList = document.getElementById('seo-checklist');
+      seoList.innerHTML = '';
+      Object.entries(data.seoCheck).forEach(([key, value]) => {
+        seoList.appendChild(renderItem(value, seoLabels[key] || key));
+      });
+
+      const salesLabels = {
+        demoLink: 'Demo link tested',
+        screenshotCreated: 'Screenshot created',
+        emailTemplateFilled: 'Email template generated',
+        emailSent: 'Email sent',
+      };
+      const salesList = document.getElementById('sales-checklist');
+      salesList.innerHTML = '';
+      Object.entries(data.salesCheck).forEach(([key, value]) => {
+        salesList.appendChild(renderItem(value, salesLabels[key] || key));
+      });
+
+      const screenshotSection = document.getElementById('screenshot-section');
+      const screenshotImg = document.getElementById('screenshot-img');
+      if (data.screenshotBase64) {
+        screenshotImg.src = 'data:image/png;base64,' + data.screenshotBase64;
+        screenshotSection.classList.remove('hidden');
+      } else {
+        screenshotSection.classList.add('hidden');
+      }
+
+      const emailSection = document.getElementById('email-section');
+      const emailPre = document.getElementById('email-template');
+      const mailtoLink = document.getElementById('mailto-link');
+      if (data.emailTemplate) {
+        emailPre.textContent = data.emailTemplate;
+        const subject = encodeURIComponent('Website Audit Report: ' + data.url);
+        const body = encodeURIComponent(data.emailTemplate);
+        mailtoLink.href = 'mailto:?subject=' + subject + '&body=' + body;
+        emailSection.classList.remove('hidden');
+      } else {
+        emailSection.classList.add('hidden');
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const url = urlInput.value.trim();
+      if (!url) return;
+
+      showLoading(true);
+      hideError();
+      report.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.message || data.error || 'Audit failed');
+          return;
+        }
+
+        renderReport(data);
+      } catch (err) {
+        showError('Network error. Is the server running?');
+      } finally {
+        showLoading(false);
+      }
+    });
+  </script>
+</body>
+</html>
