@@ -14,10 +14,7 @@ Automated website testing with a checklist. Enter a URL, run the audit, and get 
 - "Run Website Audit" button
 - Automatic checks: website live, mobile, Google Maps, contact details, images
 - SEO checks: city in title, meta description, image alt text
-- Sales checks: demo link, screenshot, email template, email ready
-- Report with ✓/✗ and score (e.g. 9 / 12)
-- Homepage screenshot in the report
-- Pre-filled email template with "Open in email client" link
+- Report with ✓/✗ and score (e.g. 8 / 8)
 
 ## Run locally
 
@@ -62,7 +59,3 @@ Then open [http://localhost:3000](http://localhost:3000).
 | SEO       | City name in title       |
 | SEO       | Meta description exists  |
 | SEO       | Images have alt text     |
-| Sales     | Demo link exists         |
-| Sales     | Screenshot generated     |
-| Sales     | Email template filled    |
-| Sales     | Email sent (manual)      |

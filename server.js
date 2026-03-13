@@ -8,9 +8,6 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Store screenshots in memory for display (base64)
-const screenshotCache = new Map();
-
 // Normalize URL to have protocol
 function normalizeUrl(input) {
   let url = input.trim();
@@ -25,9 +22,6 @@ async function runAudit(url) {
   const results = {
     websiteCheck: {},
     seoCheck: {},
-    salesCheck: {},
-    screenshotBase64: null,
-    emailTemplate: null,
   };
 
   let browser;
@@ -136,39 +130,6 @@ async function runAudit(url) {
       return withAlt.length === imgs.length;
     });
 
-    // --- Sales Check ---
-
-    // Demo link exists and is clickable
-    const demoLink = await page.evaluate(() => {
-      const links = document.querySelectorAll('a[href]');
-      for (const a of links) {
-        const text = (a.textContent || '').toLowerCase();
-        const href = (a.getAttribute('href') || '').toLowerCase();
-        if (
-          text.includes('demo') ||
-          href.includes('demo') ||
-          text.includes('try') ||
-          text.includes('start') ||
-          text.includes('request')
-        ) {
-          return { href: a.href, text: a.textContent?.trim().slice(0, 50) };
-        }
-      }
-      return null;
-    });
-
-    results.salesCheck.demoLink = !!demoLink;
-
-    // Screenshot of homepage
-    await page.setViewport({ width: 1280, height: 800 });
-    const screenshotBuffer = await page.screenshot({ type: 'png', fullPage: false });
-    results.screenshotBase64 = screenshotBuffer.toString('base64');
-
-    // Email template filled & ready to send
-    results.emailTemplate = buildEmailTemplate(url, results);
-    results.salesCheck.emailTemplateFilled = true;
-    results.salesCheck.emailSent = false; // Cannot auto-send; user must send
-
     await browser.close();
   } catch (err) {
     if (browser) await browser.close();
@@ -176,30 +137,6 @@ async function runAudit(url) {
   }
 
   return buildReport(results, url);
-}
-
-function buildEmailTemplate(url, results) {
-  const lines = [];
-  lines.push(`Website Audit Report: ${url}`);
-  lines.push('');
-  lines.push('WEBSITE CHECK');
-  lines.push(results.websiteCheck.live ? '✓ Website live' : '✗ Website live');
-  lines.push(results.websiteCheck.mobile ? '✓ Works on mobile' : '✗ Works on mobile');
-  lines.push(results.websiteCheck.googleMaps ? '✓ Google Maps works' : '✗ Google Maps works');
-  lines.push(results.websiteCheck.contactDetails ? '✓ Contact details present' : '✗ Contact details present');
-  lines.push(results.websiteCheck.imagesCorrect ? '✓ Images correct' : '✗ Images correct');
-  lines.push('');
-  lines.push('SEO CHECK');
-  lines.push(results.seoCheck.cityInTitle ? '✓ City in title' : '✗ City in title');
-  lines.push(results.seoCheck.metaDescription ? '✓ Meta description' : '✗ Meta description');
-  lines.push(results.seoCheck.altText ? '✓ Alt text on images' : '✗ Alt text on images');
-  lines.push('');
-  lines.push('SALES CHECK');
-  lines.push(results.salesCheck.demoLink ? '✓ Demo link tested' : '✗ Demo link tested');
-  lines.push('✓ Screenshot created');
-  lines.push('✓ Email template generated');
-  lines.push('✗ Email sent (manual step)');
-  return lines.join('\n');
 }
 
 function buildReport(results, url) {
@@ -217,17 +154,9 @@ function buildReport(results, url) {
     altText: results.seoCheck.altText,
   };
 
-  const salesCheck = {
-    demoLink: results.salesCheck.demoLink,
-    screenshotCreated: true,
-    emailTemplateFilled: results.salesCheck.emailTemplateFilled,
-    emailSent: results.salesCheck.emailSent,
-  };
-
   const allResults = [
     ...Object.values(websiteCheck),
     ...Object.values(seoCheck),
-    ...Object.values(salesCheck),
   ];
   const passed = allResults.filter(Boolean).length;
   const total = allResults.length;
@@ -236,10 +165,7 @@ function buildReport(results, url) {
     url,
     websiteCheck,
     seoCheck,
-    salesCheck,
     score: { passed, total },
-    screenshotBase64: results.screenshotBase64,
-    emailTemplate: results.emailTemplate,
   };
 }
 

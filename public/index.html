@@ -58,26 +58,6 @@
         <h2 class="px-6 py-4 font-semibold text-white bg-slate-800/50 border-b border-slate-700">SEO Check</h2>
         <ul id="seo-checklist" class="p-6 space-y-2"></ul>
       </section>
-
-      <section class="rounded-xl bg-slate-800/80 border border-slate-700 overflow-hidden">
-        <h2 class="px-6 py-4 font-semibold text-white bg-slate-800/50 border-b border-slate-700">Sales Check</h2>
-        <ul id="sales-checklist" class="p-6 space-y-2"></ul>
-      </section>
-
-      <section id="screenshot-section" class="rounded-xl bg-slate-800/80 border border-slate-700 overflow-hidden hidden">
-        <h2 class="px-6 py-4 font-semibold text-white bg-slate-800/50 border-b border-slate-700">Homepage Screenshot</h2>
-        <div class="p-6">
-          <img id="screenshot-img" alt="Homepage screenshot" class="rounded-lg border border-slate-600 w-full max-h-[70vh] object-contain bg-slate-900" />
-        </div>
-      </section>
-
-      <section id="email-section" class="rounded-xl bg-slate-800/80 border border-slate-700 overflow-hidden hidden">
-        <h2 class="px-6 py-4 font-semibold text-white bg-slate-800/50 border-b border-slate-700">Email Template</h2>
-        <div class="p-6 space-y-3">
-          <pre id="email-template" class="rounded-lg bg-slate-900 border border-slate-600 p-4 text-sm text-slate-300 whitespace-pre-wrap overflow-x-auto"></pre>
-          <a id="mailto-link" href="#" class="inline-flex items-center rounded-lg bg-amber-500 px-4 py-2 font-medium text-slate-900 hover:bg-amber-400 transition">Open in email client</a>
-        </div>
-      </section>
     </div>
   </div>
 
@@ -142,40 +122,6 @@
       Object.entries(data.seoCheck).forEach(([key, value]) => {
         seoList.appendChild(renderItem(value, seoLabels[key] || key));
       });
-
-      const salesLabels = {
-        demoLink: 'Demo link tested',
-        screenshotCreated: 'Screenshot created',
-        emailTemplateFilled: 'Email template generated',
-        emailSent: 'Email sent',
-      };
-      const salesList = document.getElementById('sales-checklist');
-      salesList.innerHTML = '';
-      Object.entries(data.salesCheck).forEach(([key, value]) => {
-        salesList.appendChild(renderItem(value, salesLabels[key] || key));
-      });
-
-      const screenshotSection = document.getElementById('screenshot-section');
-      const screenshotImg = document.getElementById('screenshot-img');
-      if (data.screenshotBase64) {
-        screenshotImg.src = 'data:image/png;base64,' + data.screenshotBase64;
-        screenshotSection.classList.remove('hidden');
-      } else {
-        screenshotSection.classList.add('hidden');
-      }
-
-      const emailSection = document.getElementById('email-section');
-      const emailPre = document.getElementById('email-template');
-      const mailtoLink = document.getElementById('mailto-link');
-      if (data.emailTemplate) {
-        emailPre.textContent = data.emailTemplate;
-        const subject = encodeURIComponent('Website Audit Report: ' + data.url);
-        const body = encodeURIComponent(data.emailTemplate);
-        mailtoLink.href = 'mailto:?subject=' + subject + '&body=' + body;
-        emailSection.classList.remove('hidden');
-      } else {
-        emailSection.classList.add('hidden');
-      }
     }
 
     form.addEventListener('submit', async (e) => {
