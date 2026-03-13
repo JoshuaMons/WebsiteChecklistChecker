@@ -21,6 +21,20 @@ const AVAILABLE_CHECKS = {
 };
 const DEFAULT_CHECKLIST = Object.keys(AVAILABLE_CHECKS);
 
+// Try to map a freeform checklist line to a known check id
+function matchChecklistLineToCheckId(line) {
+  const text = line.toLowerCase();
+  if (text.includes('live') || text.includes('up') || text.includes('status')) return 'live';
+  if (text.includes('mobile') || text.includes('responsive') || text.includes('phone')) return 'mobile';
+  if (text.includes('map') || text.includes('google')) return 'googleMaps';
+  if (text.includes('contact') || text.includes('phone') || text.includes('email')) return 'contactDetails';
+  if (text.includes('image') || text.includes('photo') || text.includes('picture')) return 'imagesCorrect';
+  if (text.includes('title') || text.includes('city')) return 'cityInTitle';
+  if (text.includes('description') || text.includes('meta')) return 'metaDescription';
+  if (text.includes('alt') || text.includes('accessib')) return 'altText';
+  return null;
+}
+
 // Normalize URL to have protocol
 function normalizeUrl(input) {
   let url = input.trim();
@@ -193,17 +207,66 @@ app.get('/api/checks', (req, res) => {
 });
 
 app.post('/api/audit', async (req, res) => {
-  const { url: inputUrl, checklist } = req.body;
+  const { url: inputUrl, checklist, mode, freeform } = req.body;
   if (!inputUrl || typeof inputUrl !== 'string') {
     return res.status(400).json({ error: 'URL is required' });
   }
 
   const url = normalizeUrl(inputUrl);
-  const checklistIds = checklist === 'default' || checklist === undefined || checklist === null
-    ? null
-    : Array.isArray(checklist) ? checklist : null;
 
   try {
+    // Freeform mode: user provides their own checklist text.
+    // We try to map each line to a known automated check.
+    if (mode === 'freeform') {
+      const lines = String(freeform || '')
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+
+      if (!lines.length) {
+        return res.status(400).json({ error: 'Checklist is empty' });
+      }
+
+      // Run full default audit once, then map results to the user's lines.
+      const baseReport = await runAudit(url, null);
+      const websiteCheck = {};
+      const seoCheck = {}; // unused in freeform mode
+      const checklistLabels = {};
+
+      lines.forEach((line, index) => {
+        const id = matchChecklistLineToCheckId(line);
+        if (!id) return;
+        const value =
+          (baseReport.websiteCheck && baseReport.websiteCheck[id]) ??
+          (baseReport.seoCheck && baseReport.seoCheck[id]);
+        if (typeof value !== 'boolean') return;
+        const key = `item${index}`;
+        websiteCheck[key] = value;
+        checklistLabels[key] = line;
+      });
+
+      const allValues = Object.values(websiteCheck);
+      const passed = allValues.filter(Boolean).length;
+      const total = allValues.length;
+
+      return res.json({
+        url,
+        websiteCheck,
+        seoCheck,
+        score: { passed, total },
+        checklistLabels,
+        mode: 'freeform',
+      });
+    }
+
+    // Default / existing behavior: use default or explicit checklist ids
+    const checklistIds =
+      checklist === 'default' || checklist === undefined || checklist === null
+        ? null
+        : Array.isArray(checklist)
+        ? checklist
+        : null;
+
     const report = await runAudit(url, checklistIds);
     res.json(report);
   } catch (err) {

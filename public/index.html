@@ -32,6 +32,11 @@
           <span class="text-slate-200">Custom checklist</span>
           <span class="text-slate-500 text-sm">(choose which checks to run)</span>
         </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="checklist-mode" value="freeform" class="rounded-full border-slate-500 text-amber-500 focus:ring-amber-500 bg-slate-800" />
+          <span class="text-slate-200">Text checklist</span>
+          <span class="text-slate-500 text-sm">(type your own checklist)</span>
+        </label>
       </div>
       <div id="custom-checklist" class="hidden mt-4 pt-4 border-t border-slate-600">
         <p class="text-slate-400 text-sm mb-3">Select the checks to run:</p>
@@ -56,6 +61,16 @@
           </div>
         </div>
         <p id="custom-checklist-warning" class="hidden text-amber-400/90 text-sm mt-2">Select at least one check.</p>
+      </div>
+      <div id="freeform-checklist" class="hidden mt-4 pt-4 border-t border-slate-600">
+        <p class="text-slate-400 text-sm mb-2">Enter your own checklist criteria (one per line). We'll try to match them to automated checks.</p>
+        <textarea
+          id="freeform-text"
+          rows="5"
+          class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none resize-y"
+          placeholder="Example:&#10;- Website is live&#10;- Works on mobile&#10;- Contact details visible&#10;- Images load correctly"
+        ></textarea>
+        <p id="freeform-checklist-warning" class="hidden text-amber-400/90 text-sm mt-2">Add at least one checklist line.</p>
       </div>
     </div>
 
@@ -110,21 +125,20 @@
     const report = document.getElementById('report');
     const customChecklistEl = document.getElementById('custom-checklist');
     const customWarning = document.getElementById('custom-checklist-warning');
+    const freeformChecklistEl = document.getElementById('freeform-checklist');
+    const freeformWarning = document.getElementById('freeform-checklist-warning');
 
     document.querySelectorAll('input[name="checklist-mode"]').forEach((radio) => {
       radio.addEventListener('change', () => {
-        const isCustom = document.querySelector('input[name="checklist-mode"]:checked').value === 'custom';
+        const mode = document.querySelector('input[name="checklist-mode"]:checked').value;
+        const isCustom = mode === 'custom';
+        const isFreeform = mode === 'freeform';
         customChecklistEl.classList.toggle('hidden', !isCustom);
+        freeformChecklistEl.classList.toggle('hidden', !isFreeform);
         customWarning.classList.add('hidden');
+        freeformWarning.classList.add('hidden');
       });
     });
-
-    function getChecklistPayload() {
-      const mode = document.querySelector('input[name="checklist-mode"]:checked').value;
-      if (mode === 'default') return 'default';
-      const selected = Array.from(document.querySelectorAll('input[name="check"]:checked')).map((c) => c.value);
-      return selected;
-    }
 
     function showLoading(show) {
       loading.classList.toggle('hidden', !show);
@@ -178,13 +192,32 @@
       e.preventDefault();
       const url = urlInput.value.trim();
       if (!url) return;
+      const mode = document.querySelector('input[name="checklist-mode"]:checked').value;
 
-      const checklist = getChecklistPayload();
-      if (Array.isArray(checklist) && checklist.length === 0) {
-        customWarning.classList.remove('hidden');
-        return;
+      let payload = { mode };
+      if (mode === 'default') {
+        payload.checklist = 'default';
+      } else if (mode === 'custom') {
+        const selected = Array.from(document.querySelectorAll('input[name="check"]:checked')).map((c) => c.value);
+        if (selected.length === 0) {
+          customWarning.classList.remove('hidden');
+          return;
+        }
+        customWarning.classList.add('hidden');
+        payload.checklist = selected;
+      } else if (mode === 'freeform') {
+        const text = document.getElementById('freeform-text').value || '';
+        const hasLine = text
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .some((l) => l.length > 0);
+        if (!hasLine) {
+          freeformWarning.classList.remove('hidden');
+          return;
+        }
+        freeformWarning.classList.add('hidden');
+        payload.freeform = text;
       }
-      customWarning.classList.add('hidden');
 
       showLoading(true);
       hideError();
@@ -194,7 +227,7 @@
         const res = await fetch('/api/audit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, checklist }),
+          body: JSON.stringify({ url, ...payload }),
         });
         const data = await res.json();
 
