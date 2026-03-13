@@ -8,6 +8,19 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// All available checks: id -> { category, label }
+const AVAILABLE_CHECKS = {
+  live: { category: 'website', label: 'Website live' },
+  mobile: { category: 'website', label: 'Works on mobile' },
+  googleMaps: { category: 'website', label: 'Google Maps works' },
+  contactDetails: { category: 'website', label: 'Contact details present' },
+  imagesCorrect: { category: 'website', label: 'Images correct' },
+  cityInTitle: { category: 'seo', label: 'City in title' },
+  metaDescription: { category: 'seo', label: 'Meta description' },
+  altText: { category: 'seo', label: 'Alt text on images' },
+};
+const DEFAULT_CHECKLIST = Object.keys(AVAILABLE_CHECKS);
+
 // Normalize URL to have protocol
 function normalizeUrl(input) {
   let url = input.trim();
@@ -17,8 +30,12 @@ function normalizeUrl(input) {
   return url;
 }
 
-// Run all audit checks
-async function runAudit(url) {
+// Run all audit checks; report is filtered by checklistIds (default = all)
+async function runAudit(url, checklistIds = null) {
+  const requested = Array.isArray(checklistIds) && checklistIds.length > 0
+    ? checklistIds.filter((id) => AVAILABLE_CHECKS[id])
+    : DEFAULT_CHECKLIST;
+
   const results = {
     websiteCheck: {},
     seoCheck: {},
@@ -65,7 +82,7 @@ async function runAudit(url) {
 
     if (!results.websiteCheck.live) {
       await browser.close();
-      return buildReport(results, url);
+      return buildReport(results, url, requested);
     }
 
     // 2. Works on mobile (viewport responsive)
@@ -136,28 +153,23 @@ async function runAudit(url) {
     throw err;
   }
 
-  return buildReport(results, url);
+  return buildReport(results, url, requested);
 }
 
-function buildReport(results, url) {
-  const websiteCheck = {
-    live: results.websiteCheck.live,
-    mobile: results.websiteCheck.mobile,
-    googleMaps: results.websiteCheck.googleMaps,
-    contactDetails: results.websiteCheck.contactDetails,
-    imagesCorrect: results.websiteCheck.imagesCorrect,
-  };
+function buildReport(results, url, requestedIds) {
+  const requested = requestedIds || DEFAULT_CHECKLIST;
+  const websiteCheck = {};
+  const seoCheck = {};
+  requested.forEach((id) => {
+    const def = AVAILABLE_CHECKS[id];
+    if (!def) return;
+    const value = def.category === 'website' ? results.websiteCheck[id] : results.seoCheck[id];
+    if (value === undefined) return;
+    if (def.category === 'website') websiteCheck[id] = value;
+    else seoCheck[id] = value;
+  });
 
-  const seoCheck = {
-    cityInTitle: results.seoCheck.cityInTitle,
-    metaDescription: results.seoCheck.metaDescription,
-    altText: results.seoCheck.altText,
-  };
-
-  const allResults = [
-    ...Object.values(websiteCheck),
-    ...Object.values(seoCheck),
-  ];
+  const allResults = [...Object.values(websiteCheck), ...Object.values(seoCheck)];
   const passed = allResults.filter(Boolean).length;
   const total = allResults.length;
 
@@ -166,19 +178,33 @@ function buildReport(results, url) {
     websiteCheck,
     seoCheck,
     score: { passed, total },
+    checklistLabels: requested.reduce((acc, id) => {
+      if (AVAILABLE_CHECKS[id]) acc[id] = AVAILABLE_CHECKS[id].label;
+      return acc;
+    }, {}),
   };
 }
 
+app.get('/api/checks', (req, res) => {
+  res.json({
+    default: DEFAULT_CHECKLIST,
+    available: AVAILABLE_CHECKS,
+  });
+});
+
 app.post('/api/audit', async (req, res) => {
-  const { url: inputUrl } = req.body;
+  const { url: inputUrl, checklist } = req.body;
   if (!inputUrl || typeof inputUrl !== 'string') {
     return res.status(400).json({ error: 'URL is required' });
   }
 
   const url = normalizeUrl(inputUrl);
+  const checklistIds = checklist === 'default' || checklist === undefined || checklist === null
+    ? null
+    : Array.isArray(checklist) ? checklist : null;
 
   try {
-    const report = await runAudit(url);
+    const report = await runAudit(url, checklistIds);
     res.json(report);
   } catch (err) {
     console.error('Audit error:', err);

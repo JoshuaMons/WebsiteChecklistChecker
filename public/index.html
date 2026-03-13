@@ -19,6 +19,46 @@
       <p class="text-slate-400 mt-1">Enter a URL to run an automated checklist and get a report.</p>
     </header>
 
+    <div class="rounded-xl bg-slate-800/80 border border-slate-700 p-6 mb-6">
+      <h2 class="text-lg font-semibold text-white mb-3">Checklist</h2>
+      <div class="space-y-3">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="checklist-mode" value="default" checked class="rounded-full border-slate-500 text-amber-500 focus:ring-amber-500 bg-slate-800" />
+          <span class="text-slate-200">Default checklist</span>
+          <span class="text-slate-500 text-sm">(all Website + SEO checks)</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="checklist-mode" value="custom" class="rounded-full border-slate-500 text-amber-500 focus:ring-amber-500 bg-slate-800" />
+          <span class="text-slate-200">Custom checklist</span>
+          <span class="text-slate-500 text-sm">(choose which checks to run)</span>
+        </label>
+      </div>
+      <div id="custom-checklist" class="hidden mt-4 pt-4 border-t border-slate-600">
+        <p class="text-slate-400 text-sm mb-3">Select the checks to run:</p>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <p class="text-amber-400/90 text-sm font-medium mb-2">Website</p>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 cursor-pointer text-slate-300"><input type="checkbox" name="check" value="live" class="rounded border-slate-500 text-amber-500 bg-slate-800" /> Website live</label>
+              <label class="flex items-center gap-2 cursor-pointer text-slate-300"><input type="checkbox" name="check" value="mobile" class="rounded border-slate-500 text-amber-500 bg-slate-800" /> Works on mobile</label>
+              <label class="flex items-center gap-2 cursor-pointer text-slate-300"><input type="checkbox" name="check" value="googleMaps" class="rounded border-slate-500 text-amber-500 bg-slate-800" /> Google Maps works</label>
+              <label class="flex items-center gap-2 cursor-pointer text-slate-300"><input type="checkbox" name="check" value="contactDetails" class="rounded border-slate-500 text-amber-500 bg-slate-800" /> Contact details present</label>
+              <label class="flex items-center gap-2 cursor-pointer text-slate-300"><input type="checkbox" name="check" value="imagesCorrect" class="rounded border-slate-500 text-amber-500 bg-slate-800" /> Images correct</label>
+            </div>
+          </div>
+          <div>
+            <p class="text-amber-400/90 text-sm font-medium mb-2">SEO</p>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 cursor-pointer text-slate-300"><input type="checkbox" name="check" value="cityInTitle" class="rounded border-slate-500 text-amber-500 bg-slate-800" /> City in title</label>
+              <label class="flex items-center gap-2 cursor-pointer text-slate-300"><input type="checkbox" name="check" value="metaDescription" class="rounded border-slate-500 text-amber-500 bg-slate-800" /> Meta description</label>
+              <label class="flex items-center gap-2 cursor-pointer text-slate-300"><input type="checkbox" name="check" value="altText" class="rounded border-slate-500 text-amber-500 bg-slate-800" /> Alt text on images</label>
+            </div>
+          </div>
+        </div>
+        <p id="custom-checklist-warning" class="hidden text-amber-400/90 text-sm mt-2">Select at least one check.</p>
+      </div>
+    </div>
+
     <form id="audit-form" class="flex flex-col sm:flex-row gap-3 mb-8">
       <input
         type="url"
@@ -68,6 +108,23 @@
     const loading = document.getElementById('loading');
     const error = document.getElementById('error');
     const report = document.getElementById('report');
+    const customChecklistEl = document.getElementById('custom-checklist');
+    const customWarning = document.getElementById('custom-checklist-warning');
+
+    document.querySelectorAll('input[name="checklist-mode"]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        const isCustom = document.querySelector('input[name="checklist-mode"]:checked').value === 'custom';
+        customChecklistEl.classList.toggle('hidden', !isCustom);
+        customWarning.classList.add('hidden');
+      });
+    });
+
+    function getChecklistPayload() {
+      const mode = document.querySelector('input[name="checklist-mode"]:checked').value;
+      if (mode === 'default') return 'default';
+      const selected = Array.from(document.querySelectorAll('input[name="check"]:checked')).map((c) => c.value);
+      return selected;
+    }
 
     function showLoading(show) {
       loading.classList.toggle('hidden', !show);
@@ -99,35 +156,35 @@
       document.getElementById('score-text').textContent =
         data.score.passed + ' / ' + data.score.total;
 
-      const websiteLabels = {
-        live: 'Website live',
-        mobile: 'Works on mobile',
-        googleMaps: 'Google Maps works',
-        contactDetails: 'Contact details present',
-        imagesCorrect: 'Images correct',
-      };
+      const labels = data.checklistLabels || {};
       const websiteList = document.getElementById('website-checklist');
+      const websiteSection = websiteList.closest('section');
       websiteList.innerHTML = '';
       Object.entries(data.websiteCheck).forEach(([key, value]) => {
-        websiteList.appendChild(renderItem(value, websiteLabels[key] || key));
+        websiteList.appendChild(renderItem(value, labels[key] || key));
       });
+      websiteSection.classList.toggle('hidden', Object.keys(data.websiteCheck).length === 0);
 
-      const seoLabels = {
-        cityInTitle: 'City in title',
-        metaDescription: 'Meta description',
-        altText: 'Alt text on images',
-      };
       const seoList = document.getElementById('seo-checklist');
+      const seoSection = seoList.closest('section');
       seoList.innerHTML = '';
       Object.entries(data.seoCheck).forEach(([key, value]) => {
-        seoList.appendChild(renderItem(value, seoLabels[key] || key));
+        seoList.appendChild(renderItem(value, labels[key] || key));
       });
+      seoSection.classList.toggle('hidden', Object.keys(data.seoCheck).length === 0);
     }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const url = urlInput.value.trim();
       if (!url) return;
+
+      const checklist = getChecklistPayload();
+      if (Array.isArray(checklist) && checklist.length === 0) {
+        customWarning.classList.remove('hidden');
+        return;
+      }
+      customWarning.classList.add('hidden');
 
       showLoading(true);
       hideError();
@@ -137,7 +194,7 @@
         const res = await fetch('/api/audit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url, checklist }),
         });
         const data = await res.json();
 

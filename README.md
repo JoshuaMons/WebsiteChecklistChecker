@@ -11,6 +11,8 @@ Automated website testing with a checklist. Enter a URL, run the audit, and get 
 ## Features
 
 - Input field for website URL
+- **Default checklist** – run all Website + SEO checks (current behavior)
+- **Custom checklist** – choose which checks to run (Website and/or SEO items)
 - "Run Website Audit" button
 - Automatic checks: website live, mobile, Google Maps, contact details, images
 - SEO checks: city in title, meta description, image alt text
